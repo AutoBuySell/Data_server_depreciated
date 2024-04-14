@@ -2,7 +2,7 @@ import pandas as pd
 import os
 import traceback
 
-from apis.alpaca import get_recent_bars, get_historical_bars
+from apis.alpaca.data import get_recent_bars, get_historical_bars
 from apps.error import CustomError
 
 PATH_MARKET_DATA = '../data/market_data/'

@@ -1,17 +1,9 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from scripts.archiving import real_time_archiving, historical_archiving
-from apps.error import CustomError
 
 dataArchiving = FastAPI()
-
-@dataArchiving.exception_handler(CustomError)
-def custom_error_handler(request: Request, exc: CustomError):
-    return JSONResponse(
-        content={"message": f'{exc.message} in {exc.detail}'},
-        status_code=exc.status_code
-    )
 
 @dataArchiving.get('/')
 def hello_data_archiving():
