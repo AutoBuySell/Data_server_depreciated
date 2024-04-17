@@ -1,8 +1,8 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from apps.error import CustomError
+from apps.error import CustomError, DataReqError
 
 from apps.dataarchiving import dataArchiving
 from apps.logging import logging
@@ -40,6 +40,13 @@ def custom_error_handler(request: Request, exc: CustomError):
         status_code=exc.status_code
     )
 
+@app.exception_handler(DataReqError)
+def data_error_handler(request: Request, exc: DataReqError):
+    return JSONResponse(
+        content={"message": exc.message},
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY
+    )
+
 @app.get('/')
 def hello_world():
     '''
@@ -51,5 +58,5 @@ def hello_world():
       status_code=200,
     )
 
-app.mount('/dataArchiving', dataArchiving)
-app.mount('/logs', logging)
+app.include_router(dataArchiving, prefix='/dataArchiving')
+app.include_router(logging, prefix='/logs')

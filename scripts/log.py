@@ -30,7 +30,7 @@ LOG_TEMPLATE = {
 PATH_ACTION_LOGS = '../data/log_data/action_logs.csv'
 PATH_ERROR_LOGS = '../data/log_data/data_server_error_logs.csv'
 
-TERMINATED_STATUS = ['filled', 'canceled', 'expired', 'rejected', 'closed']
+TERMINATED_STATUS = ['filled', 'partially_filled', 'canceled', 'expired', 'rejected', 'closed']
 
 def create_action_log(newLog: dict[str|int|float]) -> None:
   '''
@@ -52,7 +52,6 @@ def create_action_log(newLog: dict[str|int|float]) -> None:
     log = {
       **emptyLog,
       **newLog,
-      'date_server': datetime.now().isoformat(timespec='milliseconds') + 'Z',
       'position': position,
       'qty': qty,
       'buyingPower': accountInfos['buying_power'],
@@ -69,6 +68,7 @@ def create_action_log(newLog: dict[str|int|float]) -> None:
 
   except:
     print(traceback.format_exc())
+    create_error_log(traceback.format_exc())
 
     raise CustomError(
       status_code=500,
@@ -86,7 +86,7 @@ def update_order_log():
       return
 
     logs_pd = pd.read_csv(PATH_ACTION_LOGS)
-    orderIds = logs_pd[~logs_pd['orderStatus'].isin(TERMINATED_STATUS)]['orderId']
+    orderIds = logs_pd[~logs_pd['orderStatus'].isin(TERMINATED_STATUS) & logs_pd['action'].isin(['order'])]['orderId']
 
     for orderId in orderIds:
       new_info = get_order(orderId=orderId)
@@ -100,6 +100,7 @@ def update_order_log():
 
   except:
     print(traceback.format_exc())
+    create_error_log(traceback.format_exc())
 
     raise CustomError(
       status_code=500,
@@ -120,20 +121,23 @@ def trace_action_log():
     for action in actions:
       newLogs.append({
         **emptyLog,
-        **actions,
+        **action,
       })
 
     if os.path.isfile(PATH_ACTION_LOGS):
       logs_pd = pd.read_csv(PATH_ACTION_LOGS)
-      logs_pd = pd.concat([logs_pd, pd.DataFrame(newLogs, index=[0])], ignore_index=True)\
-                  .drop_duplicates().sort_values('dateTime').reset_index(drop=True)
+      logs_pd = pd.concat([logs_pd, pd.DataFrame(newLogs)], ignore_index=True)\
+                  .fillna('')\
+                  .drop_duplicates(subset=['orderId', 'dateTime', 'NtaDescription', 'NtaStatus'])\
+                  .sort_values('dateTime').reset_index(drop=True)
     else:
-      logs_pd = pd.DataFrame(newLogs, index=[0])
+      logs_pd = pd.DataFrame(newLogs)
 
     logs_pd.to_csv(PATH_ACTION_LOGS, index=False)
 
   except:
     print(traceback.format_exc())
+    create_error_log(traceback.format_exc())
 
     raise CustomError(
       status_code=500,
@@ -152,10 +156,11 @@ def get_action_log():
 
     logs_pd = pd.read_csv(PATH_ACTION_LOGS)
 
-    return logs_pd.to_dict(orient='records')
+    return logs_pd.fillna('').to_dict(orient='records')
 
   except:
     print(traceback.format_exc())
+    create_error_log(traceback.format_exc())
 
     raise CustomError(
       status_code=500,
@@ -170,7 +175,7 @@ def create_error_log(content: str) -> None:
 
   try:
     new_log = {
-      'date': datetime.now().isoformat(timespec='milliseconds') + 'Z',
+      'date': datetime.utcnow().isoformat(timespec='milliseconds') + 'Z',
       'content': content
     }
 

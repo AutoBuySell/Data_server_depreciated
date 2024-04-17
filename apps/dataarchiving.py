@@ -1,9 +1,9 @@
-from fastapi import FastAPI
+from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from scripts.archiving import real_time_archiving, historical_archiving
 
-dataArchiving = FastAPI()
+dataArchiving = APIRouter()
 
 @dataArchiving.get('/')
 def hello_data_archiving():

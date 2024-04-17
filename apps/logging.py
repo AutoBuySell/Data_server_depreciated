@@ -1,11 +1,11 @@
-from fastapi import FastAPI, Body
+from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from apps.error import DataReqError
 
 from scripts.log import create_action_log, get_action_log, update_order_log, trace_action_log
 
-logging = FastAPI()
+logging = APIRouter()
 
 @logging.get('/')
 def get_logs():
@@ -20,7 +20,7 @@ def get_logs():
     )
 
 @logging.post('/')
-def create_logs(args: dict = Body(embed=True)):
+def create_logs(args: dict):
     if 'symbol' not in args:
         raise DataReqError('args')
 

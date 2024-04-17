@@ -5,6 +5,8 @@ import traceback
 from apis.alpaca.data import get_recent_bars, get_historical_bars
 from apps.error import CustomError
 
+from scripts.log import create_error_log
+
 PATH_MARKET_DATA = '../data/market_data/'
 PATH_MARKET_LONG_DATA = '../data/market_long_data/'
 
@@ -23,6 +25,7 @@ def real_time_archiving(symbols: list[int], timeframe: str) -> list[str]:
   새로 업데이트 된 symbol 리스트 를 반환함
   Return a list of update symbols
   '''
+
   updated = []
 
   data = get_recent_bars(symbols, timeframe)
@@ -53,6 +56,7 @@ def real_time_archiving(symbols: list[int], timeframe: str) -> list[str]:
 
   except Exception:
     print(traceback.format_exc())
+    create_error_log(traceback.format_exc())
 
     raise CustomError(
       status_code=500,
@@ -67,18 +71,30 @@ def historical_archiving(symbol: str, timeframe: str, startDate: str, endDate: s
 
   원하는 시작 날짜와 종료 날짜 데이터가 이미 모두 존재하는 경우 추가 작업은 진행하지 않음
   '''
-  if os.path.isfile(PATH_MARKET_LONG_DATA + f'{symbol}_{timeframe}.csv'):
-    prev_pd = pd.read_csv(PATH_MARKET_LONG_DATA + f'{symbol}_{timeframe}.csv')
-    oldest = prev_pd['t'].iloc[0]
-    newest = prev_pd['t'].iloc[-1]
 
-    if startDate >= oldest and endDate <= newest:
+  try:
+    if os.path.isfile(PATH_MARKET_LONG_DATA + f'{symbol}_{timeframe}.csv'):
+      prev_pd = pd.read_csv(PATH_MARKET_LONG_DATA + f'{symbol}_{timeframe}.csv')
+      oldest = prev_pd['t'].iloc[0]
+      newest = prev_pd['t'].iloc[-1]
+
+      if startDate >= oldest and endDate <= newest:
+        return
+
+    data = get_historical_bars(symbol, timeframe, startDate, endDate)
+    if len(data) == 0:
       return
 
-  data = get_historical_bars(symbol, timeframe, startDate, endDate)
-  if len(data) == 0:
-    return
+    data_pd = pd.DataFrame.from_records(data, columns=['t', 'o'])
+    data_pd['judge'] = [0] * len(data_pd)
+    data_pd.to_csv(PATH_MARKET_LONG_DATA + f'{symbol}_{timeframe}.csv', index=False)
 
-  data_pd = pd.DataFrame.from_records(data, columns=['t', 'o'])
-  data_pd['judge'] = [0] * len(data_pd)
-  data_pd.to_csv(PATH_MARKET_LONG_DATA + f'{symbol}_{timeframe}.csv', index=False)
+  except Exception:
+    print(traceback.format_exc())
+    create_error_log(traceback.format_exc())
+
+    raise CustomError(
+      status_code=500,
+      message="Internal server error",
+      detail="downloading historical data"
+    )

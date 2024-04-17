@@ -88,21 +88,20 @@ def get_actions() -> dict:
 
     response = response.json()
 
-    results = {
-      'action': response['activity_type'],
-      'orderId': response['order_id'] if 'order_id' in response else '',
-      'dateTime': response['transaction_time'] if 'transaction_time' in response else '',
-      'symbol': response['symbol'] if 'symbol' in response else '',
-      'orderQty': response['qty'] if 'qty' in response else '',
-      'orderSide': response['side'] if 'side' in response else '',
-      'orderPrice': response['price'] if 'price' in response else '',
-      'orderStatus': response['order_status'] if 'order_status' in response else '',
-      'NtaDate': response['date'] if 'date' in response else '',
-      'netAmount': response['net_amount'] if 'net_amount' in response else '',
-      'perShareAmount': response['per_share_amount'] if 'per_share_amount' in response else '',
-      'NtaDescription': response['description'] if 'description' in response else '',
-      'NtaStatus': response['status'] if 'status' in response else '',
-    }
+    results = [{
+      'action': r['activity_type'],
+      'orderId': r['order_id'] if 'order_id' in r else '',
+      'dateTime': r['transaction_time'] if 'transaction_time' in r else datetime.fromisoformat(r['date']).isoformat(timespec='milliseconds') + 'Z',
+      'symbol': r['symbol'] if 'symbol' in r else '',
+      'orderQty': r['qty'] if 'qty' in r else '',
+      'orderSide': r['side'] if 'side' in r else '',
+      'orderPrice': r['price'] if 'price' in r else '',
+      'orderStatus': r['order_status'] if 'order_status' in r else '',
+      'netAmount': r['net_amount'] if 'net_amount' in r else '',
+      'perShareAmount': r['per_share_amount'] if 'per_share_amount' in r else '',
+      'NtaDescription': r['description'] if 'description' in r else '',
+      'NtaStatus': r['status'] if 'status' in r else '',
+    } for r in response]
 
     return results
 
