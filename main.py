@@ -1,13 +1,16 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+from apps.error import CustomError, DataReqError
+
 from apps.dataarchiving import dataArchiving
+from apps.logging import logging
 
 tags_metadata = [
   {
-    "name": "Data collecting server",
-    "description": "데이터 관련 서버",
+    "name": "Data Manipulation Server",
+    "description": "데이터 처리 서버",
   }
 ]
 
@@ -16,9 +19,9 @@ origins = [
 ]
 
 app = FastAPI(
-  title="Data Manipulation",
-  summary="데이터 수집 서버",
-  version="0.0.1",
+  title="AutoTrading Data",
+  summary="자동 알고리즘 매매 프로그램 데이터 처리 서버",
+  version="0.0.2",
   openapi_tags=tags_metadata,
 )
 
@@ -29,6 +32,20 @@ app.add_middleware(
   allow_methods=["*"],
   allow_headers=["*"],
 )
+
+@app.exception_handler(CustomError)
+def custom_error_handler(request: Request, exc: CustomError):
+    return JSONResponse(
+        content={"message": f"{exc.message} in {exc.detail}"},
+        status_code=exc.status_code
+    )
+
+@app.exception_handler(DataReqError)
+def data_error_handler(request: Request, exc: DataReqError):
+    return JSONResponse(
+        content={"message": exc.message},
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY
+    )
 
 @app.get('/')
 def hello_world():
@@ -41,4 +58,5 @@ def hello_world():
       status_code=200,
     )
 
-app.mount('/dataArchiving', dataArchiving)
+app.include_router(dataArchiving, prefix='/dataArchiving')
+app.include_router(logging, prefix='/logs')
