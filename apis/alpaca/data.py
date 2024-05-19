@@ -16,7 +16,7 @@ headers = {
   'APCA-API-SECRET-KEY': os.getenv('ALPACA_PAPER_KEY_SECRET'),
 }
 
-def get_recent_bars(symbols: list[str], timeframe: str, weeks: int = 2) -> dict:
+def get_recent_bars(symbols: list[str], timeframe: str = '30Min', weeks: int = 2) -> dict:
   '''
   매도/매수 판단을 위한 최신 데이터 요청
   Alpaca API 를 통해 stock 가격 기록을 받고, 공통 형태로 변환하여 출력

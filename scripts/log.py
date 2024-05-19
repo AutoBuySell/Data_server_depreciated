@@ -23,6 +23,7 @@ LOG_TEMPLATE = {
   'qty': '',
   'buyingPower': '',
   'cash': '',
+  'equity': '',
   'netAmount': '',
   'perShareAmount': '',
 }
@@ -56,6 +57,7 @@ def create_action_log(newLog: dict[str|int|float]) -> None:
       'qty': qty,
       'buyingPower': accountInfos['buying_power'],
       'cash': accountInfos['cash'],
+      'equity': accountInfos['equity'],
     }
 
     if os.path.isfile(PATH_ACTION_LOGS):
@@ -114,6 +116,7 @@ def trace_action_log():
   '''
 
   try:
+    accountInfos = get_infos()
     actions = get_actions()
 
     emptyLog = LOG_TEMPLATE.copy()
@@ -122,6 +125,9 @@ def trace_action_log():
       newLogs.append({
         **emptyLog,
         **action,
+        'buyingPower': accountInfos['buying_power'],
+        'cash': accountInfos['cash'],
+        'equity': accountInfos['equity'],
       })
 
     if os.path.isfile(PATH_ACTION_LOGS):
