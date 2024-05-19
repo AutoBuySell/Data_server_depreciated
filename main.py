@@ -6,6 +6,7 @@ from apps.error import CustomError, DataReqError
 
 from apps.dataarchiving import dataArchiving
 from apps.logging import logging
+from apps.stats import stats
 
 tags_metadata = [
   {
@@ -60,3 +61,4 @@ def hello_world():
 
 app.include_router(dataArchiving, prefix='/dataArchiving')
 app.include_router(logging, prefix='/logs')
+app.include_router(stats, prefix='/stats')
