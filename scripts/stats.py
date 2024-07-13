@@ -21,7 +21,7 @@ def calculate_nominal_income() -> dict:
 
     logs_pd = pd.read_csv(PATH_ACTION_LOGS)
     # order 에 해당하는 action 만 취합
-    logs_pd = logs_pd[logs_pd['action'] == 'order']
+    logs_pd = logs_pd[logs_pd['action'] == 'FILL']
     # 각 order 의 최종적인 income 혹은 cost 계산
     logs_pd['filledFee'] = logs_pd['filledQty'] * logs_pd['filledAvgPrice']
 
@@ -31,10 +31,18 @@ def calculate_nominal_income() -> dict:
 
     symbols = list(logs_pd['symbol'].unique())
 
+    if len(symbols) == 0:
+      return {
+        'symbols': [],
+        'nominalIncomes': []
+      }
+
     recentBars = get_recent_bars(symbols=symbols)
+    positions = get_current_positions()
+
     # 현재 보유중인 주식에 대해 실시간 가격을 적용하여 가치 계산
     recentFees = {
-      symbol: recentBars[symbol][-1]['o'] * logs_pd[logs_pd['symbol'] == symbol]['qty'].iloc[-1]\
+      symbol: recentBars[symbol][-1]['o'] * positions[symbol]['qty'] if symbol in positions else 0\
       for symbol in recentBars.keys()
     }
 
