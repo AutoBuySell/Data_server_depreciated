@@ -93,7 +93,7 @@ def update_order_log():
     for orderId in orderIds:
       new_info = get_order(orderId=orderId)
 
-      index = logs_pd[logs_pd['orderId'] == orderId].index
+      index = logs_pd[logs_pd['orderId'].isin([orderId]) & logs_pd['action'].isin(['order'])].index
 
       for key in new_info.keys():
         logs_pd.loc[index, key] = new_info[key]
