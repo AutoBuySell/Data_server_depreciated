@@ -132,9 +132,10 @@ def trace_action_log():
 
     if os.path.isfile(PATH_ACTION_LOGS):
       logs_pd = pd.read_csv(PATH_ACTION_LOGS)
+      logs_pd
       logs_pd = pd.concat([logs_pd, pd.DataFrame(newLogs)], ignore_index=True)\
                   .fillna('')\
-                  .drop_duplicates(subset=['orderId', 'dateTime', 'NtaDescription', 'NtaStatus'])\
+                  .drop_duplicates(subset=['orderId', 'dateTime', 'NtaDescription', 'NtaStatus'], keep='last')\
                   .sort_values('dateTime').reset_index(drop=True)
     else:
       logs_pd = pd.DataFrame(newLogs)
