@@ -120,7 +120,7 @@ def make_transactions_list() -> list:
 
     logs_pd = pd.read_csv(PATH_ACTION_LOGS)
     # transaction 에 해당하는 action 만 취합
-    logs_pd = logs_pd[logs_pd['action'] == 'TRANS'][['action', 'dateTime', 'netAmount', 'equity']]
+    logs_pd = logs_pd[logs_pd['action'].isin(['CSD', 'TRANS'])][['action', 'dateTime', 'netAmount', 'equity']]
 
     transactionsList = logs_pd.fillna('').to_dict('records')
     transactionsList.append({
