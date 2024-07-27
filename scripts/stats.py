@@ -234,7 +234,7 @@ def calculate_equity_performance(
 
       if logs_pd['signedQty'].iloc[i] > 0:
         if logs_pd['accuQty'].iloc[i - 1] > 0:
-          avgPerShare.append((logs_pd['accuQty'].iloc[i - 1] * avgPerShare[i - 1] + logs_pd['filledFee']) / logs_pd['accuQty'].iloc[i])
+          avgPerShare.append((logs_pd['accuQty'].iloc[i - 1] * avgPerShare[i - 1] + logs_pd['filledFee'].iloc[i]) / logs_pd['accuQty'].iloc[i])
         else:
           avgPerShare.append(logs_pd['filledAvgPrice'].iloc[i])
       else:
@@ -247,6 +247,8 @@ def calculate_equity_performance(
 
       realized.append(-(priceToSell - priceBefore) * qtyChanged + realized[-1])
     logs_pd['realized'] = realized
+    print(avgPerShare)
+    print(realized)
 
     # 목표 기간에 포함된 날짜에 대해 price 정보 추출
     logs_pd['o'] = pd.concat([data_pd.set_index('date'), logs_pd]).sort_index()['o'].ffill()[logs_pd.index]
@@ -268,6 +270,7 @@ def calculate_equity_performance(
     ]
 
     merge_pd['date'] = merge_pd['date'].dt.strftime('%Y-%m-%d')
+    merge_pd.to_csv('test.csv')
 
     return merge_pd.to_dict(orient='list')
 
