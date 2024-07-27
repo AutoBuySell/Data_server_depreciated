@@ -216,32 +216,49 @@ def calculate_equity_performance(
     logs_pd.loc[logs_pd['orderSide'] == 'buy', ['signedQty']] = logs_pd['filledQty']
     logs_pd['filledFee'] = logs_pd['signedQty'] * logs_pd['filledAvgPrice']
 
+    # 목표 기간에 포함된 날짜에 대해 nominal(o(price), accuQty, accuFee) 또는 realized income 계산
+    # nominal: o * accuQty - accuFee
+    # realized: 보유량이 줄어들었을 때에만 발생. 단가 변화에 수량 변화를 곱하여 계산. accumulated 방식으로 표현.
+
     logs_pd['accuQty'] = list(accumulate(logs_pd['signedQty']))
     logs_pd['accuFee'] = list(accumulate(logs_pd['filledFee']))
 
+    avgPerShare = []
+    realized = []
+    for i in range(len(logs_pd)):
+      if i == 0:
+        if logs_pd['signedQty'].iloc[i] > 0:
+          avgPerShare.append(logs_pd['filledAvgPrice'].iloc[i])
+        realized.append(0)
+        continue
+
+      if logs_pd['signedQty'].iloc[i] > 0:
+        if logs_pd['accuQty'].iloc[i - 1] > 0:
+          avgPerShare.append((logs_pd['accuQty'].iloc[i - 1] * avgPerShare[i - 1] + logs_pd['filledFee']) / logs_pd['accuQty'].iloc[i])
+        else:
+          avgPerShare.append(logs_pd['filledAvgPrice'].iloc[i])
+      else:
+        avgPerShare.append(avgPerShare[-1])
+
+      priceBefore = 0 if logs_pd['accuQty'].iloc[i - 1] == 0 else avgPerShare[i - 1]
+      priceToSell = logs_pd['filledAvgPrice'].iloc[i]
+      qtyChanged = logs_pd['signedQty'].iloc[i]
+      qtyChanged = 0 if qtyChanged > 0 else qtyChanged
+
+      realized.append(-(priceToSell - priceBefore) * qtyChanged + realized[-1])
+    logs_pd['realized'] = realized
+
+    # 목표 기간에 포함된 날짜에 대해 price 정보 추출
     logs_pd['o'] = pd.concat([data_pd.set_index('date'), logs_pd]).sort_index()['o'].ffill()[logs_pd.index]
 
-    merge_pd = pd.concat([data_pd_filter, logs_pd[['accuQty', 'accuFee', 'o']]]).sort_index()
+    merge_pd = pd.concat([data_pd_filter, logs_pd[['accuQty', 'accuFee', 'realized', 'o']]]).sort_index()
     merge_pd['o'].ffill(inplace=True)
     merge_pd['accuQty'].ffill(inplace=True)
     merge_pd['accuFee'].ffill(inplace=True)
     merge_pd['accuQty'].fillna(0, inplace=True)
     merge_pd['accuFee'].fillna(0, inplace=True)
-
-    # 목표 기간에 포함된 날짜에 대해 price 정보 추출
-
-    # 목표 기간에 포함된 날짜에 대해 nominal(o(price), accuQty, accuFee) 또는 realized income 계산
-    # nominal: o * accuQty - accuFee
-    # realized: 보유량이 줄어들었을 때에만 발생. 단가 변화에 수량 변화를 곱하여 계산. accumulated 방식으로 표현.
-    realized = [0]
-    for i in range(len(merge_pd) - 1):
-      priceBefore = 0 if merge_pd['accuQty'].iloc[i] == 0 else merge_pd['accuFee'].iloc[i] / merge_pd['accuQty'].iloc[i]
-      priceAfter = 0 if merge_pd['accuQty'].iloc[i+1] == 0 else merge_pd['accuFee'].iloc[i+1] / merge_pd['accuQty'].iloc[i+1]
-      qtyChanged = merge_pd['accuQty'].iloc[i+1] - merge_pd['accuQty'].iloc[i]
-      qtyChanged = 0 if qtyChanged > 0 else qtyChanged
-
-      realized.append((priceAfter - priceBefore) * qtyChanged + realized[-1])
-    merge_pd['realized'] = realized
+    merge_pd['realized'].ffill(inplace=True)
+    merge_pd['realized'].bfill(inplace=True)
 
     merge_pd = merge_pd.reset_index()[['date', 'o', 'accuQty', 'accuFee', 'realized']]
 
