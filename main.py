@@ -2,6 +2,9 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+import os
+from dotenv import load_dotenv
+
 from apps.error import CustomError, DataReqError
 
 from apps.dataarchiving import dataArchiving
@@ -15,8 +18,12 @@ tags_metadata = [
   }
 ]
 
+load_dotenv(verbose=True)
+
+frontServerUrl = os.getenv('FRONT_SERVER_URL')
+
 origins = [
-  "*"
+    frontServerUrl,
 ]
 
 app = FastAPI(

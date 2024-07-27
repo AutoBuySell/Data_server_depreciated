@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 
 from scripts.log import update_order_log
 
-from scripts.stats import calculate_nominal_income, make_current_positions, make_transactions_list
+from scripts.stats import calculate_equity_performance, calculate_nominal_income, make_current_positions, make_transactions_list
 
 stats = APIRouter()
 
@@ -45,10 +45,14 @@ def get_transactions():
         status_code=200,
     )
 
-@stats.get('/equity_income')
-def get_equity_income(symbol: str, incomeType: str):
-    print(symbol, incomeType)
-    data = 123
+@stats.get('/equity_performance')
+def get_equity_performance(symbol: str, startDate: str = None, endDate: str = None, dateInterval: str = None):
+    data = calculate_equity_performance(
+        symbol=symbol,
+        startDate=startDate,
+        endDate=endDate,
+        dateInterval=dateInterval
+    )
 
     return JSONResponse(
         content={
