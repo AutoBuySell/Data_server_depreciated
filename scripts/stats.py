@@ -1,6 +1,8 @@
 import os
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+from itertools import accumulate
+import re
 import traceback
 
 from apis.alpaca.data import get_recent_bars
@@ -9,6 +11,7 @@ from apis.alpaca.infos import get_current_positions, get_infos
 from apps.error import CustomError
 
 from scripts.log import PATH_ACTION_LOGS, create_error_log
+from scripts.archiving import PATH_MARKET_LONG_DATA, historical_archiving
 
 def calculate_nominal_income() -> dict:
   '''
@@ -41,14 +44,14 @@ def calculate_nominal_income() -> dict:
     positions = get_current_positions()
 
     # 현재 보유중인 주식에 대해 실시간 가격을 적용하여 가치 계산
-    recentFees = {
+    recentValues = {
       symbol: recentBars[symbol][-1]['o'] * positions[symbol]['qty'] if symbol in positions else 0\
       for symbol in recentBars.keys()
     }
 
     # 현재 보유중인 주식의 가치 + 판매한 총 금액 - 구매한 총 금액 계산
     nominalIncomes = list(map(
-      lambda x: recentFees[x]\
+      lambda x: recentValues[x]\
       + sellLogs[sellLogs['symbol'] == x]['filledFee'].sum()\
       - buyLogs[buyLogs['symbol'] == x]['filledFee'].sum(),
       symbols
@@ -142,9 +145,121 @@ def make_transactions_list() -> list:
       detail='making a list of transactions history'
     )
 
-# def calculate_equity_income(symbol: str, incomeType: str) -> dict:
-#   '''
-#   Calculate daily nominal or realized income of a specific equity
-#   '''
+def calculate_equity_performance(
+  symbol: str,
+  startDate: str,
+  endDate: str,
+  dateInterval: str
+):
+  '''
+  Calculate daily nominal or realized income of a specific equity
+  dateInterval: number(int or float) + string('Y' or 'M' or 'd')
+      eg: '52d' or '2M' or '1.5Y'
+  '''
+  dayMultiplier = {
+    'd': 1,
+    'M': 30,
+    'Y': 365
+  }
 
-  
+  match = re.match(r'^(\d+(\.\d+)?)([A-Za-z])$', dateInterval)
+
+  if startDate == None:
+      startDate = '2000-01-01T00:00:00Z'
+  if endDate == None:
+      endDate = datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec='milliseconds') + 'Z'
+  if dateInterval == None:
+      dateInterval = '1.5M'
+
+  try:
+    if match:
+      interval_i = float(match.group(1))
+      interval_s = match.group(3)
+    else:
+      raise ValueError(f"Input string '{dateInterval}' does not match the required format")
+
+    dayInterval = timedelta(days=interval_i * dayMultiplier[interval_s])
+
+    # historical bars 를 호출하고, 호출 기간과 실제 기간이 겹치는 구간으로 데이터 추출
+    timeframe = '1Day'
+
+    historical_archiving(
+      symbol=symbol,
+      timeframe=timeframe,
+      startDate=startDate,
+      endDate=endDate
+    )
+
+    data_pd = pd.read_csv(PATH_MARKET_LONG_DATA + f'{symbol}_{timeframe}.csv')
+    data_pd['date'] = pd.to_datetime(data_pd['t'])
+
+    minDate = max(startDate, data_pd['t'].iloc[0])
+    maxDate = min(endDate, data_pd['t'].iloc[-1])
+
+    data_pd_filter = data_pd[
+      (data_pd['date'] >= datetime.fromisoformat(minDate[:-1]).replace(tzinfo=timezone.utc))\
+      & (data_pd['date'] <= datetime.fromisoformat(maxDate[:-1]).replace(tzinfo=timezone.utc))
+    ].resample(dayInterval, on='date').first()
+
+    # 구매/판매 리스트 파악하고 구매/판매 날짜를 추출한 데이터에 추가
+    # 구매/판매 날짜의 추정 가격 및 전체 날짜의 보유량(accuQty), 소요금액(accuFee) 기록
+    if not os.path.isfile(PATH_ACTION_LOGS):
+      return {'symbols': [], 'nominalIncomes': []}
+
+    logs_pd = pd.read_csv(PATH_ACTION_LOGS)
+    logs_pd = logs_pd[(logs_pd['action'] == 'FILL') & (logs_pd['symbol'] == symbol)][['dateTime', 'orderSide', 'filledQty', 'filledAvgPrice']]
+    logs_pd['date'] = pd.to_datetime(logs_pd['dateTime'])
+
+    logs_pd = logs_pd.reset_index(drop=True).set_index('date')
+
+    logs_pd['signedQty'] = -logs_pd['filledQty']
+    logs_pd.loc[logs_pd['orderSide'] == 'buy', ['signedQty']] = logs_pd['filledQty']
+    logs_pd['filledFee'] = logs_pd['signedQty'] * logs_pd['filledAvgPrice']
+
+    logs_pd['accuQty'] = list(accumulate(logs_pd['signedQty']))
+    logs_pd['accuFee'] = list(accumulate(logs_pd['filledFee']))
+
+    logs_pd['o'] = pd.concat([data_pd.set_index('date'), logs_pd]).sort_index()['o'].ffill()[logs_pd.index]
+
+    merge_pd = pd.concat([data_pd_filter, logs_pd[['accuQty', 'accuFee', 'o']]]).sort_index()
+    merge_pd['o'].ffill(inplace=True)
+    merge_pd['accuQty'].ffill(inplace=True)
+    merge_pd['accuFee'].ffill(inplace=True)
+    merge_pd['accuQty'].fillna(0, inplace=True)
+    merge_pd['accuFee'].fillna(0, inplace=True)
+
+    # 목표 기간에 포함된 날짜에 대해 price 정보 추출
+
+    # 목표 기간에 포함된 날짜에 대해 nominal(o(price), accuQty, accuFee) 또는 realized income 계산
+    # nominal: o * accuQty - accuFee
+    # realized: 보유량이 줄어들었을 때에만 발생. 단가 변화에 수량 변화를 곱하여 계산. accumulated 방식으로 표현.
+    realized = [0]
+    for i in range(len(merge_pd) - 1):
+      priceBefore = 0 if merge_pd['accuQty'].iloc[i] == 0 else merge_pd['accuFee'].iloc[i] / merge_pd['accuQty'].iloc[i]
+      priceAfter = 0 if merge_pd['accuQty'].iloc[i+1] == 0 else merge_pd['accuFee'].iloc[i+1] / merge_pd['accuQty'].iloc[i+1]
+      qtyChanged = merge_pd['accuQty'].iloc[i+1] - merge_pd['accuQty'].iloc[i]
+      qtyChanged = 0 if qtyChanged > 0 else qtyChanged
+
+      realized.append((priceAfter - priceBefore) * qtyChanged + realized[-1])
+    merge_pd['realized'] = realized
+
+    merge_pd = merge_pd.reset_index()[['date', 'o', 'accuQty', 'accuFee', 'realized']]
+
+    merge_pd = merge_pd[
+      (merge_pd['date'] >= datetime.fromisoformat(minDate[:-1]).replace(tzinfo=timezone.utc))\
+      & (merge_pd['date'] <= datetime.fromisoformat(maxDate[:-1]).replace(tzinfo=timezone.utc))
+    ]
+
+    merge_pd['date'] = merge_pd['date'].dt.strftime('%Y-%m-%d')
+
+    return merge_pd.to_dict(orient='list')
+
+  except:
+    print(traceback.format_exc())
+    create_error_log(traceback.format_exc())
+
+    raise CustomError(
+      status_code=500,
+      message='Internal server error',
+      detail='calculating historical equity performance'
+    )

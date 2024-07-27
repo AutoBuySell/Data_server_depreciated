@@ -1,4 +1,5 @@
 import pandas as pd
+from datetime import datetime, timedelta
 import os
 import traceback
 
@@ -69,7 +70,7 @@ def historical_archiving(symbol: str, timeframe: str, startDate: str, endDate: s
   평가용 장기 데이터를 다운받아 저장소에 저장하는 함수
   Storing long-term data for evaluation
 
-  원하는 시작 날짜와 종료 날짜 데이터가 이미 모두 존재하는 경우 추가 작업은 진행하지 않음
+  원하는 시작 날짜와 종료 날짜 데이터가 1주 오차 이내에서 이미 모두 존재하는 경우, 추가 작업은 진행하지 않음
   '''
 
   try:
@@ -78,7 +79,7 @@ def historical_archiving(symbol: str, timeframe: str, startDate: str, endDate: s
       oldest = prev_pd['t'].iloc[0]
       newest = prev_pd['t'].iloc[-1]
 
-      if startDate >= oldest and endDate <= newest:
+      if startDate >= (datetime.fromisoformat(oldest[:-1]) - timedelta(weeks=1)).isoformat(timespec='milliseconds') + 'Z' and endDate <= (datetime.fromisoformat(newest[:-1]) + timedelta(weeks=1)).isoformat(timespec='milliseconds') + 'Z':
         return
 
     data = get_historical_bars(symbol, timeframe, startDate, endDate)
@@ -86,7 +87,6 @@ def historical_archiving(symbol: str, timeframe: str, startDate: str, endDate: s
       return
 
     data_pd = pd.DataFrame.from_records(data, columns=['t', 'o'])
-    data_pd['judge'] = [0] * len(data_pd)
     data_pd.to_csv(PATH_MARKET_LONG_DATA + f'{symbol}_{timeframe}.csv', index=False)
 
   except Exception:
