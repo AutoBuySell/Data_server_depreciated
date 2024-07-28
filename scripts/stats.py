@@ -247,8 +247,6 @@ def calculate_equity_performance(
 
       realized.append(-(priceToSell - priceBefore) * qtyChanged + realized[-1])
     logs_pd['realized'] = realized
-    print(avgPerShare)
-    print(realized)
 
     # 목표 기간에 포함된 날짜에 대해 price 정보 추출
     logs_pd['o'] = pd.concat([data_pd.set_index('date'), logs_pd]).sort_index()['o'].ffill()[logs_pd.index]
@@ -270,7 +268,6 @@ def calculate_equity_performance(
     ]
 
     merge_pd['date'] = merge_pd['date'].dt.strftime('%Y-%m-%d')
-    merge_pd.to_csv('test.csv')
 
     return merge_pd.to_dict(orient='list')
 
